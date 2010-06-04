@@ -28,6 +28,7 @@ if ("WebSocket" in window) {
 
     ws.onmessage = function (evt) {
         var data = evt.data;
+        debug(data)
         var i = data.indexOf("!");
         var tag = data.slice(0,i);
         var val = data.slice(i+1);

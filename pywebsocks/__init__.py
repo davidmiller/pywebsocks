@@ -15,9 +15,10 @@
 
 
 from twisted.protocols.basic import LineReceiver
-from twisted.internet.protocol import Factory
+from twisted.internet.protocol import Factory, Protocol
+from md5 import md5
 import re
-
+import struct
 
 class BasicOperations(object):
     """ Basic tx websockets operations handler. Overwrite it with your operations """
@@ -58,8 +59,8 @@ Upgrade: WebSocket\r
 Connection: Upgrade\r
 Sec-WebSocket-Origin: %s\r
 Sec-WebSocket-Location: ws://%s%s
-Sec-WebSocket-Protocol: sample\r\n\r\n
-Response'''
+Sec-WebSocket-Protocol: sample\r\n
+%s'''
 
     def connectionMade(self):
         self.setRawMode()
@@ -70,11 +71,13 @@ Response'''
 
     def rawDataReceived(self, line):
         origin, location, host, key1, key2 = self._parseHeaders(line)
-        challenge = self._make_challenge_response(key1, key2, '')
-        print self.hdr % (origin, host, location)
-        print key1
-        print key2
-        self.sendLine(self.hdr % (origin, host, location))
+        bytes = line[-8:]
+        
+        keys = self._parse_keys(key1,key2)
+        challenge = self._make_challenge_response(keys, bytes)
+        challenge_md5 = md5(challenge).digest()
+        print self.hdr % (origin, host, location, challenge)
+        self.sendLine(self.hdr % (origin, host, location, challenge_md5))
         self.delimiter='\xff'
         self.setLineMode()
         self.factory.oper.setWriteHandler(self.sendLine)
@@ -117,7 +120,7 @@ Response'''
         divide_me = zip(digints, space_count)        
         return [d/s for d,s in divide_me]
 
-    def _make_challenge_response(self, key1, key2, bytes):
+    def _make_challenge_response(self, keys, bytes):
         """
         Returns the challenge response
         Arguments:
@@ -125,6 +128,10 @@ Response'''
         - `key2`:
         - `bytes`:
         """
+        packed = [struct.pack("!I", k) for k in keys]
+        challenge = "".join(packed)
+        challenge += bytes
+        return challenge
         
 
         
